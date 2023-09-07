@@ -1,4 +1,4 @@
-<h1 align="center"> <a href="https://sunguoqi.com/"> <img src="https://readme-typing-svg.herokuapp.com/?lines=console.log(%22Welcome%2C%20o come here！%22);vighzhen祝您今天愉快!&center=true&size=27"> </a> </h1>
+<h1 align="center"><a href="https://git.io/typing-svg"><img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=500&pause=1000&center=%E7%9C%9F&vCenter=%E5%81%87&repeat=%E7%9C%9F&width=435&lines=Welcome+to+come+here+!;Vighzhen+wishes+you+a+pleasant+day+!+!+!" alt="Typing SVG" /></a></h1>
 
 <!--统计-->
 <div align="center"> 
