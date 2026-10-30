@@ -28,6 +28,32 @@
 - 🤖 探索 **AI 编程工具与自动化工作流**，也做开源项目的二次开发。
 - 🌱 在项目里学习，在使用中打磨：**简单易用，持续改进**。
 
+### 📊 GitHub 统计
+
+<p align="center">
+  <a href="https://vighzhen.github.io/vighzhen/">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://vighzhen.github.io/vighzhen/overview-dark.svg" />
+      <img src="https://vighzhen.github.io/vighzhen/overview-light.svg" alt="GitHub 数据概览：公开仓库、非 Fork 仓库星标、关注者、今年公开贡献和最后取数时间" width="420" />
+    </picture>
+  </a>
+  <a href="https://vighzhen.github.io/vighzhen/">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://vighzhen.github.io/vighzhen/languages-dark.svg" />
+      <img src="https://vighzhen.github.io/vighzhen/languages-light.svg" alt="代码语言分布：非 Fork 公开项目的完整代码字节占比和最后取数时间" width="420" />
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  GitHub 官方公开数据 · 计划每 5 分钟更新 · 最新取数时间见卡片<br />
+  <a href="https://vighzhen.github.io/vighzhen/">查看完整统计</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/vighzhen/vighzhen/actions/workflows/profile-stats.yml">手动更新</a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/vighzhen/vighzhen/blob/main/STATS.md">统计口径</a>
+</p>
+
 ### ✨ 项目精选
 
 | 项目 | 简介 | 入口 |

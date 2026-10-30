@@ -6,6 +6,7 @@ import collections
 import datetime as dt
 import html
 import json
+import os
 import pathlib
 import subprocess
 
@@ -116,6 +117,9 @@ def collect(login):
         "stars": sum(repo["stargazerCount"] for repo in owned),
         "followers": profile["followers"],
         "contributions": contributions["contributionCalendar"]["totalContributions"],
+        "contribution_visibility": (
+            "public" if os.environ.get("GITHUB_ACTIONS") == "true" else "authenticated-viewer"
+        ),
         "commits": contributions["totalCommitContributions"],
         "pull_requests": contributions["totalPullRequestContributions"],
         "issues": contributions["totalIssueContributions"],
@@ -166,6 +170,8 @@ def footer(data, c):
 
 def overview(data, theme):
     c = THEMES[theme]
+    public = data.get("contribution_visibility") == "public"
+    contribution_label = "今年公开贡献" if public else "今年可见贡献"
     body = text(20, 33, "GitHub 数据概览", c["text"], 18, 700)
     body += text(20, 56, f'@{data["login"]} · {data["year"]}', c["muted"], 12)
     body += rect(319, 20, 81, 24, c["panel"], 12)
@@ -175,7 +181,8 @@ def overview(data, theme):
          f'{data["non_fork_repositories"]} 个非 Fork 仓库'),
         ("仓库星标", data["stars"], "非 Fork 公开仓库"),
         ("关注者", data["followers"], "GitHub Followers"),
-        ("今年贡献", data["contributions"], "GitHub 贡献日历"),
+        (contribution_label, data["contributions"],
+         "公开贡献日历" if public else "当前账号可见范围"),
     ]
     for index, (label, value, detail) in enumerate(metrics):
         x, y = 20 + (index % 2) * 196, 77 + (index // 2) * 100
@@ -183,7 +190,7 @@ def overview(data, theme):
         body += text(x + 14, y + 23, label, c["muted"], 12, 500)
         body += text(x + 14, y + 58, f"{value:,}", c["accent"], 30, 700)
         body += text(x + 14, y + 77, detail, c["muted"], 10)
-    body += text(20, 290, "今年贡献明细", c["text"], 12, 600)
+    body += text(20, 290, contribution_label + "明细", c["text"], 12, 600)
     for x, label, key in [(20, "提交", "commits"), (151, "PR", "pull_requests"),
                           (278, "Issue", "issues")]:
         body += text(x, 314, f'{label}  {data[key]:,}', c["muted"], 12)
@@ -191,7 +198,7 @@ def overview(data, theme):
     description = (
         f'{data["public_repositories"]} 个公开仓库，'
         f'{data["stars"]} 个非 Fork 仓库星标，'
-        f'{data["followers"]} 位关注者，{data["contributions"]} 次今年贡献。'
+        f'{data["followers"]} 位关注者，{data["contributions"]} 次{contribution_label}。'
     )
     return frame("Vighzhen 的 GitHub 数据概览", description, body, theme)
 
