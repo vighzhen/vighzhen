@@ -82,11 +82,13 @@ THEMES = {
         "bg": "#ffffff", "panel": "#f6f8fa", "border": "#d8dee4",
         "text": "#1f2328", "muted": "#59636e", "accent": "#0969da",
         "track": "#eaeef2", "green": "#1a7f37", "red": "#cf222e",
+        "calendar": ["#ebedf0", "#9be9a8", "#40c463", "#30a14e", "#216e39"],
     },
     "dark": {
         "bg": "#0d1117", "panel": "#161b22", "border": "#30363d",
         "text": "#f0f6fc", "muted": "#9da7b3", "accent": "#58a6ff",
         "track": "#21262d", "green": "#3fb950", "red": "#ff7b72",
+        "calendar": ["#161b22", "#0e4429", "#006d32", "#26a641", "#39d353"],
     },
 }
 
@@ -287,80 +289,18 @@ def rect(x, y, width, height, fill, radius=0, stroke=None):
     )
 
 
-def frame(title, description, body, theme):
+def frame(title, description, body, theme, width=420, height=320):
     c = THEMES[theme]
     return (
-        '<svg xmlns="http://www.w3.org/2000/svg" width="420" height="320" '
-        'viewBox="0 0 420 320" role="img" aria-labelledby="title description">'
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}" role="img" aria-labelledby="title description">'
         f"<title id=\"title\">{html.escape(title)}</title>"
         f"<desc id=\"description\">{html.escape(description)}</desc>"
         '<g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,'
         'Noto Sans CJK SC,Microsoft YaHei,Arial,sans-serif">'
-        + rect(0.5, 0.5, 419, 319, c["bg"], 16, c["border"])
+        + rect(0.5, 0.5, width - 1, height - 1, c["bg"], 12, c["border"])
         + body + "</g></svg>\n"
     )
-
-
-def footer(data, c):
-    return (
-        rect(20, 286, 380, 1, c["border"])
-        + text(20, 305, data["updated_at_china"], c["muted"], 10)
-    )
-
-
-def overview(data, theme):
-    c = THEMES[theme]
-    contribution_label = "今年贡献"
-    body = text(20, 33, "GitHub 数据概览", c["text"], 18, 700)
-    body += text(400, 33, str(data["year"]), c["muted"], 12, anchor="end")
-    metrics = [
-        ("全部仓库", data["total_repositories"],
-         f'公开 {data["public_repositories"]} · 私有 {data["private_repositories"]}'),
-        ("仓库星标", data["stars"], ""),
-        ("关注者", data["followers"], ""),
-        (contribution_label, data["contributions"], ""),
-    ]
-    for index, (label, value, detail) in enumerate(metrics):
-        x, y = 20 + (index % 2) * 196, 56 + (index // 2) * 96
-        body += rect(x, y, 184, 84, c["panel"], 10)
-        body += text(x + 14, y + 22, label, c["muted"], 12, 500)
-        body += text(x + 14, y + 56, f"{value:,}", c["accent"], 30, 700)
-        if detail:
-            body += text(x + 14, y + 73, detail, c["muted"], 10)
-    for x, label, key in [(20, "年度提交", "commits"), (159, "PR", "pull_requests"),
-                          (245, "议题", "issues"), (325, "审查", "reviews")]:
-        body += text(x, 265, f'{label} {data[key]:,}', c["muted"], 11)
-    body += footer(data, c)
-    description = (
-        f'{data["total_repositories"]} 个仓库，其中 {data["private_repositories"]} 个私有仓库，'
-        f'{data["stars"]} 个非 Fork 仓库星标，'
-        f'{data["followers"]} 位关注者，{data["contributions"]} 次{contribution_label}。'
-    )
-    return frame("Vighzhen 的 GitHub 数据概览", description, body, theme)
-
-
-def language_card(data, theme):
-    c = THEMES[theme]
-    body = text(20, 33, "代码语言分布", c["text"], 18, 700)
-    visible = [dict(item) for item in data["languages"][:5]]
-    remainder = data["languages"][5:]
-    if remainder:
-        visible.append({
-            "name": "其他", "color": "#8b949e",
-            "percent": sum(item["percent"] for item in remainder),
-        })
-    if not visible:
-        body += text(20, 115, "暂无可统计的代码语言", c["muted"], 14)
-    for index, item in enumerate(visible):
-        y = 69 + index * 35
-        body += rect(20, y - 9, 8, 8, item["color"], 4)
-        body += text(36, y, item["name"], c["text"], 12, 500)
-        body += text(400, y, f'{item["percent"]:.1f}%', c["muted"], 12, 500, "end")
-        body += rect(20, y + 8, 380, 5, c["track"], 2.5)
-        if item["percent"] > 0:
-            body += rect(20, y + 8, 380 * item["percent"] / 100, 5, item["color"], 2.5)
-    body += footer(data, c)
-    return frame("Vighzhen 的代码语言分布", "公开与私有的非 Fork 项目代码字节占比。", body, theme)
 
 
 def compact(value):
@@ -371,67 +311,152 @@ def compact(value):
     return f"{value:,}"
 
 
-def chart_dates(rows, c):
+def visible_languages(data):
+    visible = [dict(item) for item in data["languages"][:5]]
+    remainder = data["languages"][5:]
+    if remainder:
+        visible.append({
+            "name": "其他", "color": "#8b949e",
+            "percent": sum(item["percent"] for item in remainder),
+        })
+    return visible
+
+
+def activity_calendar(data, c, x, y, step=20, size=15):
+    rows = data["daily_activity"]
+    first = dt.date.fromisoformat(rows[0]["date"])
+    start = first - dt.timedelta(days=first.weekday())
+    peak = max(1, max(row["commits"] for row in rows))
+    palette = c["calendar"]
     body = ""
-    for index in (0, 14, 29):
-        x = 24 + index * 12.8 + 5
-        body += text(x, 271, rows[index]["date"][5:].replace("-", "/"),
-                     c["muted"], 10, anchor="middle")
+    for weekday, label in ((0, "一"), (2, "三"), (4, "五")):
+        body += text(x - 10, y + weekday * step + size - 3,
+                     label, c["muted"], 10, anchor="end")
+    for row in rows:
+        date = dt.date.fromisoformat(row["date"])
+        offset = (date - start).days
+        count = row["commits"]
+        level = 0 if not count else min(4, max(1, (count * 4 + peak - 1) // peak))
+        bx, by = x + offset // 7 * step, y + date.weekday() * step
+        body += (
+            f'<g data-date="{row["date"]}" data-commits="{count}">'
+            f'<title>{row["date"]} · {count} 次提交 · '
+            f'新增 {row["additions"]} 行 · 删除 {row["deletions"]} 行</title>'
+            + rect(bx, by, size, size, palette[level], 3) + "</g>"
+        )
     return body
 
 
-def commit_card(data, theme):
+def activity_card(data, theme, mobile=False):
     c = THEMES[theme]
-    today, total, rows = data["today"], data["last_30_days"], data["daily_activity"]
-    body = text(20, 33, "每日提交", c["text"], 18, 700)
-    body += text(20, 63, "今日", c["muted"], 12)
-    body += text(20, 102, f'{today["commits"]:,}', c["accent"], 36, 700)
-    body += text(216, 63, "近 30 天", c["muted"], 12)
-    body += text(216, 102, f'{total["commits"]:,}', c["text"], 30, 700)
-    body += text(20, 133, f'活跃 {total["active_days"]} 天', c["muted"], 11)
-    peak = max(1, max(row["commits"] for row in rows))
-    for index, row in enumerate(rows):
-        x, height = 24 + index * 12.8, row["commits"] / peak * 98
-        body += rect(x, 154, 9, 98, c["panel"], 2)
-        if row["commits"]:
-            body += (
-                f'<g><title>{row["date"]}：{row["commits"]} 次提交</title>'
-                + rect(x, 252 - height, 9, height, c["accent"], 2) + "</g>"
-            )
-    body += chart_dates(rows, c) + footer(data, c)
-    return frame("Vighzhen 的每日提交",
-                 f'今日 {today["commits"]} 次，近 30 天 {total["commits"]} 次提交。',
-                 body, theme)
+    today, total = data["today"], data["last_30_days"]
+    width, height = (420, 472) if mobile else (840, 342)
+    margin = 24 if mobile else 28
+    body = text(margin, 36, "开发记录", c["text"], 18, 600)
+    body += text(width - margin, 35, data["updated_at_china"],
+                 c["muted"], 10, anchor="end")
+    positions = (24, 158, 292) if mobile else (28, 206, 396)
+    for x, label, value, color in zip(
+        positions, ("今日提交", "今日新增", "今日删除"),
+        (f'{today["commits"]:,}', f'+{compact(today["additions"])}',
+         f'−{compact(today["deletions"])}'),
+        (c["text"], c["green"], c["red"]),
+    ):
+        body += text(x, 77, label, c["muted"], 12)
+        body += text(x, 119, value, color, 30 if mobile else 36, 600)
+
+    body += rect(margin, 143, 372 if mobile else 542, 1, c["border"])
+    body += text(margin, 166, "近 30 天", c["muted"], 11)
+    positions = (24, 123, 222, 321) if mobile else (28, 174, 322, 476)
+    for x, label, value, color in zip(
+        positions, ("提交", "新增行", "删除行", "活跃天"),
+        (f'{total["commits"]:,}', f'+{compact(total["additions"])}',
+         f'−{compact(total["deletions"])}', str(total["active_days"])),
+        (c["text"], c["green"], c["red"], c["text"]),
+    ):
+        body += text(x, 190, label, c["muted"], 11)
+        body += text(x, 218, value, color, 21 if mobile else 24, 500)
+
+    first, last = data["daily_activity"][0]["date"][5:], today["date"][5:]
+    if mobile:
+        body += rect(24, 238, 372, 1, c["border"])
+        body += text(24, 262, "提交日历", c["muted"], 11)
+        body += text(182, 262, f"{first} — {last}", c["muted"], 10, anchor="end")
+        body += activity_calendar(data, c, 44, 275, 18, 13)
+        for index, (label, value) in enumerate((
+            ("仓库", data["total_repositories"]), ("星标", data["stars"]),
+            ("关注者", data["followers"]), ("今年贡献", data["contributions"]),
+        )):
+            x, y = 220 + index % 2 * 95, 288 + index // 2 * 56
+            body += text(x, y, label, c["muted"], 10)
+            body += text(x, y + 24, f"{value:,}", c["text"], 21, 500)
+        language_y = 402
+        body += rect(24, 380, 372, 1, c["border"])
+    else:
+        body += rect(604, 66, 1, 159, c["border"])
+        body += text(640, 75, "提交日历", c["muted"], 12)
+        body += activity_calendar(data, c, 658, 90, 18, 13)
+        body += text(640, 239, f"{first} — {last}", c["muted"], 10)
+        body += text(28, 258,
+                     f'{data["total_repositories"]} 仓库'
+                     f'（公开 {data["public_repositories"]} / 私有 {data["private_repositories"]}）'
+                     f'    ·    {data["stars"]} 星标'
+                     f'    ·    {data["followers"]} 关注者'
+                     f'    ·    {data["contributions"]} 今年贡献',
+                     c["muted"], 12)
+        body += rect(28, 276, 784, 1, c["border"])
+        language_y = 300
+
+    for index, item in enumerate(visible_languages(data)):
+        columns = 3 if mobile else 6
+        x = margin + index % columns * (130 if mobile else 133)
+        y = language_y + index // columns * 38
+        body += rect(x, y - 7, 7, 7, item["color"], 3.5)
+        body += text(x + 13, y, item["name"], c["muted"], 10.5)
+        body += text(x + 13, y + 18, f'{item["percent"]:.1f}%', c["text"], 13, 500)
+    if not data["languages"]:
+        body += text(margin, language_y, "暂无代码语言数据", c["muted"], 12)
+    return frame(
+        "Vighzhen 的开发记录",
+        f'今日 {today["commits"]} 次提交，新增 {today["additions"]} 行，'
+        f'删除 {today["deletions"]} 行；近 30 天 {total["commits"]} 次提交。'
+        "包含公开、私有项目与开发分支。",
+        body, theme, width, height,
+    )
 
 
-def code_card(data, theme):
+def trend_card(data, theme, mobile=False):
     c = THEMES[theme]
-    today, total, rows = data["today"], data["last_30_days"], data["daily_activity"]
-    body = text(20, 33, "每日代码变化", c["text"], 18, 700)
-    body += text(400, 33, "行", c["muted"], 12, anchor="end")
-    body += text(20, 63, "今日新增", c["muted"], 12)
-    body += text(216, 63, "今日删除", c["muted"], 12)
-    body += text(20, 101, f'+{compact(today["additions"])}', c["green"], 30, 700)
-    body += text(216, 101, f'−{compact(today["deletions"])}', c["red"], 30, 700)
-    body += text(20, 132, "近 30 天", c["muted"], 11)
-    body += text(90, 132, f'+{compact(total["additions"])}', c["green"], 12, 600)
-    body += text(216, 132, f'−{compact(total["deletions"])}', c["red"], 12, 600)
-    peak = max(1, max(max(row["additions"], row["deletions"]) for row in rows))
-    body += rect(20, 203, 380, 1, c["border"])
-    for index, row in enumerate(rows):
-        x = 24 + index * 12.8
-        additions, deletions = row["additions"] / peak * 49, row["deletions"] / peak * 49
-        body += f'<g><title>{row["date"]}：新增 {row["additions"]} 行，删除 {row["deletions"]} 行</title>'
-        if row["additions"]:
-            body += rect(x, 203 - max(1, additions), 9, max(1, additions), c["green"], 1)
-        if row["deletions"]:
-            body += rect(x, 204, 9, max(1, deletions), c["red"], 1)
-        body += "</g>"
-    body += chart_dates(rows, c) + footer(data, c)
-    return frame("Vighzhen 的每日代码变化",
-                 f'今日新增 {today["additions"]} 行，删除 {today["deletions"]} 行。',
-                 body, theme)
-
+    rows = data["daily_activity"]
+    body = text(24, 32, "每日趋势", c["text"], 16, 600)
+    for index, (x, title, keys, colors) in enumerate((
+        (24, "提交次数", ("commits",), (c["accent"],)),
+        (450, "代码变化 · 行", ("additions", "deletions"), (c["green"], c["red"])),
+    )):
+        shift = index * 202 if mobile else 0
+        x = 24 if mobile else x
+        body += text(x, 65 + shift, title, c["muted"], 12)
+        peak = max(1, max(row[key] for row in rows for key in keys))
+        body += text(x + 358, 65 + shift, compact(peak), c["muted"], 10, anchor="end")
+        for grid_y in (90, 146, 202):
+            body += rect(x, grid_y + shift, 358, 1, c["border"])
+        for key, color in zip(keys, colors):
+            points = [(x + index * 358 / 29, 202 + shift - row[key] / peak * 104)
+                      for index, row in enumerate(rows)]
+            path = " ".join(f'{"M" if i == 0 else "L"}{px:.2f},{py:.2f}'
+                            for i, (px, py) in enumerate(points))
+            body += f'<path d="{path}" fill="none" stroke="{color}" stroke-width="2"/>'
+            for row, (px, py) in zip(rows, points):
+                label = {"commits": "提交", "additions": "新增行", "deletions": "删除行"}[key]
+                body += (f'<circle cx="{px:.2f}" cy="{py:.2f}" r="3" fill="{color}">'
+                         f'<title>{row["date"]} · {label} {row[key]:,}</title></circle>')
+        if len(keys) == 2:
+            body += text(x + 145, 65 + shift, "新增", c["green"], 11)
+            body += text(x + 195, 65 + shift, "删除", c["red"], 11)
+        body += text(x, 225 + shift, rows[0]["date"][5:], c["muted"], 10)
+        body += text(x + 358, 225 + shift, rows[-1]["date"][5:], c["muted"], 10, anchor="end")
+    return frame("Vighzhen 的每日开发趋势", "近 30 天提交与代码变化的折线趋势。",
+                 body, theme, 420 if mobile else 840, 446 if mobile else 246)
 
 def page(data, cards):
     stamp = html.escape(data["updated_at_china"])
@@ -443,11 +468,13 @@ def page(data, cards):
                 .replace('aria-labelledby="title description"',
                          f'aria-labelledby="{prefix}-title {prefix}-description"'))
 
-    panels = "".join(
-        f'<div class="card"><div class="light">{embedded(name, "light")}</div>'
-        f'<div class="dark">{embedded(name, "dark")}</div></div>'
-        for name in ("overview", "languages", "commits", "code")
-    )
+    def responsive_panel(name):
+        return (
+            f'<div class="desktop"><div class="light">{embedded(name, "light")}</div>'
+            f'<div class="dark">{embedded(name, "dark")}</div></div>'
+            f'<div class="mobile"><div class="light">{embedded(f"{name}-mobile", "light")}</div>'
+            f'<div class="dark">{embedded(f"{name}-mobile", "dark")}</div></div>'
+        )
     rows = "".join(
         f'<tr><th scope="row">{row["date"]}</th><td>{row["commits"]:,}</td>'
         f'<td class="added">+{row["additions"]:,}</td>'
@@ -459,39 +486,45 @@ def page(data, cards):
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{login} · GitHub 统计</title>
 <style>
-:root{{color-scheme:light dark;--bg:#f6f8fa;--panel:#fff;--border:#d8dee4;
+:root{{color-scheme:light dark;--bg:#fff;--panel:#fff;--border:#d8dee4;
 --text:#1f2328;--muted:#59636e;--accent:#0969da;--green:#1a7f37;--red:#cf222e}}
 *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--text);
 font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif}}
 main{{max-width:920px;margin:auto;padding:48px 28px 32px}}
-.eyebrow{{color:var(--accent);font-size:12px;font-weight:700;letter-spacing:.12em}}
-h1{{font-size:36px;line-height:1.2;letter-spacing:-.03em;margin:12px 0}}
-p{{color:var(--muted)}}.cards{{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:28px 0}}
-svg{{display:block;width:100%;height:auto}}.dark{{display:none}}
+.eyebrow{{color:var(--muted);font-size:12px;font-weight:500;letter-spacing:.08em}}
+h1{{font-size:32px;line-height:1.2;letter-spacing:-.03em;margin:16px 0}}
+p{{color:var(--muted)}}.activity{{margin:32px 0 16px}}.annual{{font-size:12px}}
+.trend{{margin:28px 0}}svg{{display:block;width:100%;height:auto}}
+.dark,.mobile{{display:none}}
 table{{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;background:var(--panel)}}
 th,td{{padding:11px 18px;border-bottom:1px solid var(--border);text-align:right}}
 th:first-child{{text-align:left}}thead th{{color:var(--muted);font-size:12px;font-weight:500}}
 tbody th{{font-weight:400}}.added{{color:var(--green)}}.removed{{color:var(--red)}}
 h2{{font-size:18px;margin-top:36px}}caption{{text-align:left;color:var(--muted);font-size:12px;padding-bottom:12px}}
-nav{{display:flex;gap:20px;flex-wrap:wrap}}a{{color:var(--accent);text-underline-offset:4px}}
+nav{{display:flex;gap:20px;flex-wrap:wrap;margin-top:24px}}a{{color:var(--accent);text-underline-offset:4px}}
 a:focus-visible{{outline:2px solid var(--accent);outline-offset:4px}}
 footer{{font-size:12px;color:var(--muted);margin-top:30px}}
-@media(prefers-color-scheme:dark){{:root{{--bg:#010409;--panel:#0d1117;--border:#30363d;
+summary{{cursor:pointer;font-size:16px;font-weight:500;margin:28px 0 16px}}
+@media(prefers-color-scheme:dark){{:root{{--bg:#0d1117;--panel:#0d1117;--border:#30363d;
 --text:#f0f6fc;--muted:#9da7b3;--accent:#58a6ff;--green:#3fb950;--red:#ff7b72}}
 .light{{display:none}}.dark{{display:block}}}}
-@media(max-width:660px){{main{{padding:32px 16px}}h1{{font-size:28px}}.cards{{grid-template-columns:1fr}}}}
+@media(max-width:767px){{main{{padding:32px 16px}}h1{{font-size:28px}}.desktop{{display:none}}.mobile{{display:block}}}}
 @media(max-width:420px){{th,td{{padding:10px 6px;font-size:12px}}}}
 </style></head><body><main>
-<div class="eyebrow">VIGHZHEN / GITHUB</div>
-<h1>开发足迹</h1>
+<div class="eyebrow">VIGHZHEN</div>
+<h1>开发记录</h1>
 <p>{stamp} · UTC+8</p>
-<div class="cards">{panels}</div>
+<div class="activity">{responsive_panel("activity")}</div>
+<p class="annual">{data["year"]} 年度贡献 · 提交 {data["commits"]:,}
+ · PR {data["pull_requests"]:,} · 议题 {data["issues"]:,} · 审查 {data["reviews"]:,}
+ · 公开 {data["public_repositories"]} / 私有 {data["private_repositories"]}</p>
+<div class="trend">{responsive_panel("trends")}</div>
 <nav><a href="https://github.com/{login}">GitHub 主页</a></nav>
-<h2>每日明细</h2>
+<details open><summary>每日明细</summary>
 <table><caption>近 30 天 · UTC+8</caption>
 <thead><tr><th scope="col">日期</th><th scope="col">提交</th>
 <th scope="col">新增行</th><th scope="col">删除行</th></tr></thead>
-<tbody>{rows}</tbody></table>
+<tbody>{rows}</tbody></table></details>
 <footer>© {data["year"]} {login}</footer>
 </main></body></html>"""
 
@@ -506,10 +539,10 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     cards = {}
     for theme in THEMES:
-        cards[f"overview-{theme}"] = overview(data, theme)
-        cards[f"languages-{theme}"] = language_card(data, theme)
-        cards[f"commits-{theme}"] = commit_card(data, theme)
-        cards[f"code-{theme}"] = code_card(data, theme)
+        cards[f"activity-{theme}"] = activity_card(data, theme)
+        cards[f"activity-mobile-{theme}"] = activity_card(data, theme, mobile=True)
+        cards[f"trends-{theme}"] = trend_card(data, theme)
+        cards[f"trends-mobile-{theme}"] = trend_card(data, theme, mobile=True)
     for name, content in cards.items():
         (output / f"{name}.svg").write_text(content, encoding="utf-8")
     (output / "stats.json").write_text(
