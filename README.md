@@ -34,19 +34,19 @@
   <a href="https://vighzhen.github.io/vighzhen/">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://vighzhen.github.io/vighzhen/overview-dark.svg" />
-      <img src="https://vighzhen.github.io/vighzhen/overview-light.svg" alt="GitHub 数据概览：公开仓库、非 Fork 仓库星标、关注者、今年公开贡献和最后取数时间" width="420" />
+      <img src="https://vighzhen.github.io/vighzhen/overview-light.svg" alt="GitHub 数据概览：全部仓库、仓库星标、关注者、今年贡献；包含私有项目，并显示最后取数时间" width="420" />
     </picture>
   </a>
   <a href="https://vighzhen.github.io/vighzhen/">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="https://vighzhen.github.io/vighzhen/languages-dark.svg" />
-      <img src="https://vighzhen.github.io/vighzhen/languages-light.svg" alt="代码语言分布：非 Fork 公开项目的完整代码字节占比和最后取数时间" width="420" />
+      <img src="https://vighzhen.github.io/vighzhen/languages-light.svg" alt="代码语言分布：公开与私有的非 Fork 项目代码字节占比，不显示私有仓库名称或源码" width="420" />
     </picture>
   </a>
 </p>
 
 <p align="center">
-  GitHub 官方公开数据 · 计划每 5 分钟更新 · 最新取数时间见卡片<br />
+  GitHub 官方数据（含私有项目）· 计划每 5 分钟更新 · 最新取数时间见卡片<br />
   <a href="https://vighzhen.github.io/vighzhen/">查看完整统计</a>
   &nbsp;·&nbsp;
   <a href="https://github.com/vighzhen/vighzhen/actions/workflows/profile-stats.yml">手动更新</a>

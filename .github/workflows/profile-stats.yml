@@ -34,7 +34,7 @@ jobs:
 
       - name: 从 GitHub 官方 API 生成统计
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.PROFILE_STATS_TOKEN }}
         run: python3 scripts/build_stats.py --login "$GITHUB_REPOSITORY_OWNER" --output "_site"
 
       - name: 上传统计页面

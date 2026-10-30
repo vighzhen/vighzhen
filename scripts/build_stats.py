@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""Read GitHub's APIs and build a dependency-free, public statistics site."""
+"""Build public aggregate statistics, including the owner's private projects."""
 
 import argparse
 import collections
 import datetime as dt
 import html
 import json
-import os
 import pathlib
 import subprocess
 
@@ -14,11 +13,11 @@ import subprocess
 QUERY = """
 query($login:String!,$after:String,$from:DateTime!,$to:DateTime!) {
   user(login:$login) {
-    repositories(first:100,after:$after,privacy:PUBLIC,
+    repositories(first:100,after:$after,
       ownerAffiliations:OWNER,orderBy:{field:NAME,direction:ASC}) {
       pageInfo { hasNextPage endCursor }
       nodes {
-        name isFork stargazerCount
+        name isPrivate isFork stargazerCount
         languages(first:100,orderBy:{field:SIZE,direction:DESC}) {
           totalCount totalSize
           edges { size node { name color } }
@@ -64,7 +63,9 @@ def api(endpoint, payload=None):
 
 def collect(login):
     now = dt.datetime.now(dt.timezone.utc)
-    profile = api(f"users/{login}")
+    profile = api("user")
+    if profile["login"].lower() != login.lower():
+        raise RuntimeError("Statistics must use the repository owner's personal credential")
     variables = {
         "login": login, "after": None,
         "from": f"{now.year}-01-01T00:00:00Z",
@@ -84,6 +85,10 @@ def collect(login):
         variables["after"] = connection["pageInfo"]["endCursor"]
 
     owned = [repo for repo in repositories if not repo["isFork"]]
+    private_count = sum(repo["isPrivate"] for repo in repositories)
+    expected_private = profile.get("owned_private_repos")
+    if expected_private is not None and private_count < expected_private:
+        raise RuntimeError("The credential cannot access every owned private repository")
     languages = collections.Counter()
     colors = {}
     for repo in owned:
@@ -92,9 +97,9 @@ def collect(login):
             continue
         connection = repo["languages"]
         if connection["totalCount"] > len(connection["edges"]):
-            raise RuntimeError(f"Incomplete language data for {repo['name']}")
+            raise RuntimeError("Incomplete repository language data; nothing will be published")
         if sum(edge["size"] for edge in connection["edges"]) != connection["totalSize"]:
-            raise RuntimeError(f"Inconsistent language data for {repo['name']}")
+            raise RuntimeError("Inconsistent repository language data; nothing will be published")
         for edge in connection["edges"]:
             name = edge["node"]["name"]
             languages[name] += edge["size"]
@@ -113,19 +118,19 @@ def collect(login):
             dt.timezone(dt.timedelta(hours=8))
         ).strftime("%Y-%m-%d %H:%M"),
         "public_repositories": profile["public_repos"],
+        "private_repositories": private_count,
+        "total_repositories": profile["public_repos"] + private_count,
         "non_fork_repositories": len(owned),
         "stars": sum(repo["stargazerCount"] for repo in owned),
         "followers": profile["followers"],
         "contributions": contributions["contributionCalendar"]["totalContributions"],
-        "contribution_visibility": (
-            "public" if os.environ.get("GITHUB_ACTIONS") == "true" else "authenticated-viewer"
-        ),
+        "contribution_visibility": "public-and-private",
         "commits": contributions["totalCommitContributions"],
         "pull_requests": contributions["totalPullRequestContributions"],
         "issues": contributions["totalIssueContributions"],
         "reviews": contributions["totalPullRequestReviewContributions"],
         "language_bytes": total_bytes, "languages": entries,
-        "sources": ["https://api.github.com/users/" + login,
+        "sources": ["https://api.github.com/user",
                     "https://api.github.com/graphql"],
     }
 
@@ -170,19 +175,17 @@ def footer(data, c):
 
 def overview(data, theme):
     c = THEMES[theme]
-    public = data.get("contribution_visibility") == "public"
-    contribution_label = "今年公开贡献" if public else "今年可见贡献"
+    contribution_label = "今年贡献"
     body = text(20, 33, "GitHub 数据概览", c["text"], 18, 700)
-    body += text(20, 56, f'@{data["login"]} · {data["year"]}', c["muted"], 12)
+    body += text(20, 56, f'@{data["login"]} · {data["year"]} · 包含私有项目', c["muted"], 12)
     body += rect(319, 20, 81, 24, c["panel"], 12)
     body += text(359.5, 36, "官方 API", c["accent"], 10.5, 600, "middle")
     metrics = [
-        ("公开仓库", data["public_repositories"],
-         f'{data["non_fork_repositories"]} 个非 Fork 仓库'),
-        ("仓库星标", data["stars"], "非 Fork 公开仓库"),
+        ("全部仓库", data["total_repositories"],
+         f'公开 {data["public_repositories"]} · 私有 {data["private_repositories"]}'),
+        ("仓库星标", data["stars"], "非 Fork 仓库 · 包含私有"),
         ("关注者", data["followers"], "GitHub Followers"),
-        (contribution_label, data["contributions"],
-         "公开贡献日历" if public else "当前账号可见范围"),
+        (contribution_label, data["contributions"], "包含公开与私有活动"),
     ]
     for index, (label, value, detail) in enumerate(metrics):
         x, y = 20 + (index % 2) * 196, 77 + (index // 2) * 100
@@ -196,7 +199,7 @@ def overview(data, theme):
         body += text(x, 314, f'{label}  {data[key]:,}', c["muted"], 12)
     body += footer(data, c)
     description = (
-        f'{data["public_repositories"]} 个公开仓库，'
+        f'{data["total_repositories"]} 个仓库，其中 {data["private_repositories"]} 个私有仓库，'
         f'{data["stars"]} 个非 Fork 仓库星标，'
         f'{data["followers"]} 位关注者，{data["contributions"]} 次{contribution_label}。'
     )
@@ -206,7 +209,7 @@ def overview(data, theme):
 def language_card(data, theme):
     c = THEMES[theme]
     body = text(20, 33, "代码语言分布", c["text"], 18, 700)
-    body += text(20, 56, "按代码字节统计 · 非 Fork 公开项目", c["muted"], 12)
+    body += text(20, 56, "代码字节占比 · 非 Fork 项目 · 包含私有", c["muted"], 12)
     visible = [dict(item) for item in data["languages"][:5]]
     remainder = data["languages"][5:]
     if remainder:
@@ -224,9 +227,9 @@ def language_card(data, theme):
         body += rect(20, y + 8, 380, 5, c["track"], 2.5)
         if item["percent"] > 0:
             body += rect(20, y + 8, 380 * item["percent"] / 100, 5, item["color"], 2.5)
-    body += text(20, 313, "不代表熟练程度；二开项目按 GitHub 的 Fork 标记计入。", c["muted"], 10)
+    body += text(20, 313, "私有项目只展示汇总，不显示仓库名称或源码。", c["muted"], 10)
     body += footer(data, c)
-    return frame("Vighzhen 的代码语言分布", "非 Fork 公开项目的代码字节占比。", body, theme)
+    return frame("Vighzhen 的代码语言分布", "公开与私有的非 Fork 项目代码字节占比。", body, theme)
 
 
 def page(data, cards):
@@ -261,7 +264,7 @@ footer{{font-size:12px;color:var(--muted);margin-top:30px}}
 <nav><a href="https://github.com/{login}">返回 GitHub 主页</a>
 <a href="https://github.com/{login}/{login}/actions/workflows/profile-stats.yml">手动更新</a>
 <a href="https://github.com/{login}/{login}/blob/main/STATS.md">查看统计口径</a></nav>
-<footer>数据来自 GitHub 官方 API。语言占比按代码字节计算，不表示技能熟练程度。</footer>
+<footer>统计包含公开与私有项目，只展示汇总数字。语言占比按代码字节计算，不表示技能熟练程度。</footer>
 </main></body></html>"""
 
 
